@@ -720,7 +720,6 @@ struct NVGpaint nvgLinearGradientStops(struct NVGcontext* ctx,
 									   const struct NVGstop * stops, 
 									   unsigned nstops) {
 	unsigned char data[NVG_GRADIENT_SAMPLES*4];
-	int img;
 	float w = ex-sx;
 	float h = ey-sy;
 	float len = sqrtf(w*w + h*h);
@@ -741,7 +740,7 @@ struct NVGpaint nvgLinearGradientStops(struct NVGcontext* ctx,
 											NVG_GRADIENT_SAMPLES, 1, 
 											data);
 	return nvgImagePattern(ctx, 
-						   sx, sy, 
+						   sx, sy,
 						   len, len,
 						   atan2f(ey-sy, ex-sx),
 						   ctx->gradientImage,
