@@ -30,6 +30,8 @@
 #define NVG_INIT_PATHS_SIZE 16
 #define NVG_INIT_VERTS_SIZE 256
 #define NVG_MAX_STATES 32
+#define NVG_GRADIENT_SAMPLES 1024
+
 
 #define NVG_KAPPA90 0.5522847493f	// Lenght proportional to radius of a cubic bezier handle for 90deg arcs.
 
@@ -111,6 +113,7 @@ struct NVGcontext {
 	float devicePxRatio;
 	struct FONScontext* fs;
 	int fontImage;
+	int gradientImage;
 	int alphaBlend;
 	int drawCallCount;
 	int fillTriCount;
@@ -691,6 +694,58 @@ void nvgImageSize(struct NVGcontext* ctx, int image, int* w, int* h)
 void nvgDeleteImage(struct NVGcontext* ctx, int image)
 {
 	ctx->params.renderDeleteTexture(ctx->params.userPtr, image);
+}
+
+static void gradientSpan(unsigned char * dst,
+						 const struct NVGstop * s0, 
+						 const struct NVGstop * s1) {
+	unsigned s = nvg__clampf(s0->offset, 0.0f, 1.0f) * NVG_GRADIENT_SAMPLES;
+	unsigned e = nvg__clampf(s1->offset, 0.0f, 1.0f) * NVG_GRADIENT_SAMPLES;
+	for (unsigned i = s; i < e; i++) {
+		float f = i * (1.0f / NVG_GRADIENT_SAMPLES);
+		struct NVGcolor curr = nvgLerpRGBA(
+			s0->color, s1->color, 
+			(f - s0->offset)/(s1->offset - s0->offset));
+		assert(i < NVG_GRADIENT_SAMPLES);
+		dst[4*i+0] = curr.r * 255;
+		dst[4*i+1] = curr.g * 255;
+		dst[4*i+2] = curr.b * 255;
+		dst[4*i+3] = curr.a * 255;
+	}
+}
+
+struct NVGpaint nvgLinearGradientStops(struct NVGcontext* ctx, 
+									   float sx, float sy, 
+									   float ex, float ey, 
+									   const struct NVGstop * stops, 
+									   unsigned nstops) {
+	unsigned char data[NVG_GRADIENT_SAMPLES*4];
+	int img;
+	float w = ex-sx;
+	float h = ey-sy;
+	float len = sqrtf(w*w + h*h);
+	struct NVGstop s0 = {0, {0,0,0,1}};
+	struct NVGstop s1 = {1, {1,1,1,1}};
+	assert(nstops < 64);
+	if (nstops) {
+		s0.color = stops[0].color;
+		s1.color = stops[nstops-1].color;
+	}
+	gradientSpan(data, &s0, nstops? stops : &s1);
+	for (unsigned i = 0; i < (nstops - 1); i++)
+		gradientSpan(data, stops + i, stops + i + 1);
+	gradientSpan(data, nstops? stops + nstops - 1 : &s0, &s1);
+	if (ctx->gradientImage)
+		nvgDeleteImage(ctx, ctx->gradientImage);
+	ctx->gradientImage = nvgCreateImageRGBA(ctx, 
+											NVG_GRADIENT_SAMPLES, 1, 
+											data);
+	return nvgImagePattern(ctx, 
+						   sx, sy, 
+						   len, len,
+						   atan2f(ey-sy, ex-sx),
+						   ctx->gradientImage,
+						   NVG_REPEATX|NVG_REPEATY);
 }
 
 struct NVGpaint nvgLinearGradient(struct NVGcontext* ctx,

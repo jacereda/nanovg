@@ -36,6 +36,11 @@ struct NVGcolor {
 	};
 };
 
+struct NVGstop {
+	float offset;
+	struct NVGcolor color;
+};
+
 struct NVGpaint {
 	float xform[6];
 	float extent[2];
@@ -334,6 +339,12 @@ void nvgDeleteImage(struct NVGcontext* ctx, int image);
 // The gradient is transformed by the current transform when it is passed to nvgFillPaint() or nvgStrokePaint().
 struct NVGpaint nvgLinearGradient(struct NVGcontext* ctx, float sx, float sy, float ex, float ey,
 								  struct NVGcolor icol, struct NVGcolor ocol);
+
+struct NVGpaint nvgLinearGradientStops(struct NVGcontext* ctx, 
+									   float sx, float sy, 
+									   float ex, float ey, 
+									   const struct NVGstop * stops, 
+									   unsigned nstops);
 
 // Creates and returns a box gradient. Box gradient is a feathered rounded rectangle, it is useful for rendering
 // drop shadows or hilights for boxes. Parameters (x,y) define the top-left corner of the rectangle,
