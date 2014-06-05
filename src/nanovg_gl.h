@@ -223,7 +223,7 @@ static struct GLNVGtexture* glnvg__allocTexture(struct GLNVGcontext* gl)
 	}
 	
 	memset(tex, 0, sizeof(*tex));
-	tex->id = ++gl->textureId;
+	tex->id = tex - gl->textures + 1;
 	
 	return tex;
 }
