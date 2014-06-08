@@ -696,24 +696,32 @@ void nvgDeleteImage(struct NVGcontext* ctx, int image)
 	ctx->params.renderDeleteTexture(ctx->params.userPtr, image);
 }
 
-static void gradientSpan(unsigned char * dst,
+static void gradientSpan(uint32_t * dst,
 						 const struct NVGstop * s0, 
 						 const struct NVGstop * s1) {
 	float s0o = nvg__clampf(s0->offset, 0.0f, 1.0f);
 	float s1o = nvg__clampf(s1->offset, 0.0f, 1.0f);
 	unsigned s = s0o * NVG_GRADIENT_SAMPLES;
 	unsigned e = s1o * NVG_GRADIENT_SAMPLES;
-	float scale = 255.0f / (s1o - s0o);
-	const float * s0rgba = s0->color.rgba;
-	const float * s1rgba = s1->color.rgba;
+	unsigned sc = 0xffffffff;
+	unsigned sh = 24;
+	unsigned r = s0->color.rgba[0] * sc;
+	unsigned g = s0->color.rgba[1] * sc;
+	unsigned b = s0->color.rgba[2] * sc;
+	unsigned a = s0->color.rgba[3] * sc;
+	unsigned dr = (s1->color.rgba[0] * sc - r) / (e-s);
+	unsigned dg = (s1->color.rgba[1] * sc - g) / (e-s);
+	unsigned db = (s1->color.rgba[2] * sc - b) / (e-s);
+	unsigned da = (s1->color.rgba[3] * sc - a) / (e-s);
 	for (unsigned i = s; i < e; i++) {
-		float f = scale * (i * (1.0f / NVG_GRADIENT_SAMPLES) - s0o);
-		float omf = (255.0 - f);
-		assert(i < NVG_GRADIENT_SAMPLES);
-		dst[4*i+0] = s0rgba[0] * omf + s1rgba[0] * f;
-		dst[4*i+1] = s0rgba[1] * omf + s1rgba[1] * f;
-		dst[4*i+2] = s0rgba[2] * omf + s1rgba[2] * f;
-		dst[4*i+3] = s0rgba[3] * omf + s1rgba[3] * f;
+		dst[i] = 
+#if defined __BIG_ENDIAN__
+			((r>>sh)<<24) + ((g>>sh)<<16) + ((b>>sh)<<8) + ((a>>sh)<<0)
+#else
+			((a>>sh)<<24) + ((b>>sh)<<16) + ((g>>sh)<<8) + ((r>>sh)<<0)
+#endif
+				;
+		r += dr; g += dg; b += db; a += da;
 	}
 }
 
@@ -722,7 +730,7 @@ struct NVGpaint nvgLinearGradientStops(struct NVGcontext* ctx,
 									   float ex, float ey, 
 									   const struct NVGstop * stops, 
 									   unsigned nstops) {
-	unsigned char data[NVG_GRADIENT_SAMPLES*4];
+	uint32_t data[NVG_GRADIENT_SAMPLES];
 	float w = ex-sx;
 	float h = ey-sy;
 	float len = sqrtf(w*w + h*h);
@@ -740,7 +748,7 @@ struct NVGpaint nvgLinearGradientStops(struct NVGcontext* ctx,
 	gradientSpan(data, nstops? stops + nstops - 1 : &s0, &s1);
 	img = nvgCreateImageRGBA(ctx, 
 							 NVG_GRADIENT_SAMPLES, 1, 
-							 data);
+							 (unsigned char*)data);
 	return nvgImagePattern(ctx, 
 						   sx, sy,
 						   len, len,
