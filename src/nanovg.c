@@ -699,18 +699,21 @@ void nvgDeleteImage(struct NVGcontext* ctx, int image)
 static void gradientSpan(unsigned char * dst,
 						 const struct NVGstop * s0, 
 						 const struct NVGstop * s1) {
-	unsigned s = nvg__clampf(s0->offset, 0.0f, 1.0f) * NVG_GRADIENT_SAMPLES;
-	unsigned e = nvg__clampf(s1->offset, 0.0f, 1.0f) * NVG_GRADIENT_SAMPLES;
+	float s0o = nvg__clampf(s0->offset, 0.0f, 1.0f);
+	float s1o = nvg__clampf(s1->offset, 0.0f, 1.0f);
+	unsigned s = s0o * NVG_GRADIENT_SAMPLES;
+	unsigned e = s1o * NVG_GRADIENT_SAMPLES;
+	float scale = 255.0f / (s1o - s0o);
+	const float * s0rgba = s0->color.rgba;
+	const float * s1rgba = s1->color.rgba;
 	for (unsigned i = s; i < e; i++) {
-		float f = i * (1.0f / NVG_GRADIENT_SAMPLES);
-		struct NVGcolor curr = nvgLerpRGBA(
-			s0->color, s1->color, 
-			(f - s0->offset)/(s1->offset - s0->offset));
+		float f = scale * (i * (1.0f / NVG_GRADIENT_SAMPLES) - s0o);
+		float omf = (255.0 - f);
 		assert(i < NVG_GRADIENT_SAMPLES);
-		dst[4*i+0] = curr.r * 255;
-		dst[4*i+1] = curr.g * 255;
-		dst[4*i+2] = curr.b * 255;
-		dst[4*i+3] = curr.a * 255;
+		dst[4*i+0] = s0rgba[0] * omf + s1rgba[0] * f;
+		dst[4*i+1] = s0rgba[1] * omf + s1rgba[1] * f;
+		dst[4*i+2] = s0rgba[2] * omf + s1rgba[2] * f;
+		dst[4*i+3] = s0rgba[3] * omf + s1rgba[3] * f;
 	}
 }
 
@@ -725,6 +728,7 @@ struct NVGpaint nvgLinearGradientStops(struct NVGcontext* ctx,
 	float len = sqrtf(w*w + h*h);
 	struct NVGstop s0 = {0, {0,0,0,1}};
 	struct NVGstop s1 = {1, {1,1,1,1}};
+	int img;
 	assert(nstops < 64);
 	if (nstops) {
 		s0.color = stops[0].color;
@@ -734,16 +738,14 @@ struct NVGpaint nvgLinearGradientStops(struct NVGcontext* ctx,
 	for (unsigned i = 0; i < (nstops - 1); i++)
 		gradientSpan(data, stops + i, stops + i + 1);
 	gradientSpan(data, nstops? stops + nstops - 1 : &s0, &s1);
-	if (ctx->gradientImage)
-		nvgDeleteImage(ctx, ctx->gradientImage);
-	ctx->gradientImage = nvgCreateImageRGBA(ctx, 
-											NVG_GRADIENT_SAMPLES, 1, 
-											data);
+	img = nvgCreateImageRGBA(ctx, 
+							 NVG_GRADIENT_SAMPLES, 1, 
+							 data);
 	return nvgImagePattern(ctx, 
 						   sx, sy,
 						   len, len,
 						   atan2f(ey-sy, ex-sx),
-						   ctx->gradientImage,
+						   img,
 						   NVG_REPEATX|NVG_REPEATY);
 }
 
